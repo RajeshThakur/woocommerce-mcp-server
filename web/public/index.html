@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Store Assistant — AI agent for WooCommerce</title>
+<meta name="description" content="Ask your WooCommerce store questions in plain English. An AI agent built on a custom MCP server looks up products, orders, customers and sales for you." />
+<style>
+  :root {
+    --bg: #F4F6F9;
+    --surface: #FFFFFF;
+    --text: #1F2937;
+    --muted: #6B7280;
+    --border: #E2E6EC;
+    --accent: #1E3A8A;
+    --accent-hover: #2563EB;
+    --on-accent: #FFFFFF;
+    --chip-bg: #EEF2FF;
+    --chip-text: #3730A3;
+    --ok: #047857;
+    --warn: #B45309;
+    --danger: #B91C1C;
+    --banner-bg: #FFF7E6;
+    --banner-border: #F5D9A0;
+    --banner-text: #7A4B06;
+    --focus: #2563EB;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F141C;
+      --surface: #171E29;
+      --text: #E6EAF0;
+      --muted: #98A2B3;
+      --border: #28313F;
+      --accent: #3B5BDB;
+      --accent-hover: #5C7CFA;
+      --chip-bg: #1E2840;
+      --chip-text: #B8C4FF;
+      --ok: #34D399;
+      --warn: #FBBF24;
+      --danger: #F87171;
+      --banner-bg: #2A2112;
+      --banner-border: #5A4217;
+      --banner-text: #F5D79A;
+      --focus: #7C9BFF;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+  button, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .app { width: 100%; max-width: 760px; margin: 0 auto; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 16px; }
+
+  header { padding: 20px 0 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  h1 { font-size: 1.35rem; color: var(--text); letter-spacing: -0.01em; }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-top: 2px; }
+  .new-chat {
+    background: transparent; border: 1px solid var(--border); border-radius: 999px;
+    padding: 6px 14px; font-size: 0.82rem; color: var(--muted); cursor: pointer; white-space: nowrap;
+  }
+  .new-chat:hover { border-color: var(--accent-hover); color: var(--accent-hover); }
+
+  .banner {
+    border: 1px solid var(--banner-border); background: var(--banner-bg); color: var(--banner-text);
+    border-radius: 10px; padding: 9px 14px; font-size: 0.85rem; margin-bottom: 12px;
+  }
+  .banner strong { font-weight: 650; }
+
+  #log { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 2px 12px; display: flex; flex-direction: column; gap: 14px; scroll-behavior: smooth; }
+
+  .welcome { margin: auto 0; text-align: center; padding: 8px 0 16px; }
+  .welcome h2 { font-size: 1.15rem; margin-bottom: 6px; }
+  .welcome p { color: var(--muted); font-size: 0.92rem; max-width: 480px; margin: 0 auto 16px; }
+  .suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .suggestions button {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+    padding: 8px 16px; font-size: 0.88rem; cursor: pointer; color: var(--text);
+  }
+  .suggestions button:hover { border-color: var(--accent-hover); color: var(--accent-hover); }
+
+  .msg { display: flex; flex-direction: column; max-width: 88%; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.assistant { align-self: flex-start; align-items: flex-start; }
+  .bubble { padding: 10px 14px; border-radius: 16px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; font-size: 0.95rem; }
+  .user .bubble { background: var(--accent); color: var(--on-accent); border-bottom-right-radius: 4px; }
+  .assistant .bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .error .bubble { border-color: var(--danger); color: var(--danger); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .chip {
+    background: var(--chip-bg); color: var(--chip-text); border-radius: 999px;
+    padding: 3px 11px; font-size: 0.76rem; display: inline-flex; gap: 6px; align-items: center;
+  }
+  .chip .args { opacity: 0.75; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip.bad { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+  .chip.muted { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .meta { font-size: 0.72rem; color: var(--muted); margin-top: 4px; padding-left: 4px; }
+
+  .approval {
+    background: var(--surface); border: 2px solid var(--warn); border-radius: 14px; padding: 14px 16px;
+    max-width: 440px;
+  }
+  .approval .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--warn); font-weight: 650; margin-bottom: 4px; }
+  .approval .what { font-weight: 600; margin-bottom: 4px; }
+  .approval .note { font-size: 0.82rem; color: var(--muted); margin-bottom: 12px; }
+  .approval .actions { display: flex; gap: 8px; }
+  .approval button { border-radius: 8px; padding: 8px 18px; font-size: 0.9rem; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: transparent; }
+  .approval button.go { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .approval button.go:hover { background: var(--accent-hover); }
+  .approval button:disabled { opacity: 0.55; cursor: default; }
+  .approval .done { font-size: 0.88rem; color: var(--muted); }
+
+  .typing { color: var(--muted); font-size: 0.88rem; display: flex; align-items: center; gap: 8px; padding: 4px 6px; }
+  .dots { display: inline-flex; gap: 3px; }
+  .dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite ease-in-out; }
+  .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .dots span { animation: none; opacity: 0.6; } #log { scroll-behavior: auto; } }
+
+  .composer { padding: 10px 0 8px; border-top: 1px solid var(--border); background: var(--bg); }
+  .composer form { display: flex; gap: 8px; align-items: flex-end; }
+  textarea {
+    flex: 1; resize: none; border: 1px solid var(--border); background: var(--surface); border-radius: 14px;
+    padding: 11px 14px; font-size: 0.95rem; max-height: 120px; line-height: 1.4;
+  }
+  textarea:focus { outline: 2px solid var(--focus); border-color: transparent; }
+  .send {
+    background: var(--accent); color: var(--on-accent); border: none; border-radius: 14px;
+    padding: 11px 20px; font-weight: 600; cursor: pointer; height: 44px;
+  }
+  .send:hover { background: var(--accent-hover); }
+  .send:disabled { opacity: 0.5; cursor: default; }
+  .counter { font-size: 0.72rem; color: var(--muted); text-align: right; min-height: 1em; margin-top: 3px; }
+  .counter.warn { color: var(--danger); }
+
+  footer { font-size: 0.76rem; color: var(--muted); text-align: center; padding: 4px 0 14px; }
+  footer a { color: var(--accent-hover); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 520px) {
+    header { padding-top: 14px; }
+    .msg { max-width: 94%; }
+    .send { padding: 11px 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Store Assistant</h1>
+      <p class="subtitle">AI agent for WooCommerce, built on MCP</p>
+    </div>
+    <button class="new-chat" id="new-chat" type="button">New chat</button>
+  </header>
+
+  <div class="banner" id="banner" role="note"></div>
+
+  <main id="log" role="log" aria-live="polite" aria-label="Conversation"></main>
+
+  <div class="composer">
+    <form id="form" autocomplete="off">
+      <label for="input" hidden>Message</label>
+      <textarea id="input" rows="1" placeholder="Ask about products, orders, customers or sales..." maxlength="500"></textarea>
+      <button class="send" id="send" type="submit">Send</button>
+    </form>
+    <div class="counter" id="counter" aria-hidden="true"></div>
+  </div>
+
+  <footer>
+    Built by Rajesh Thakur &middot; custom MCP server + agent loop &middot;
+    <a href="https://github.com/RajeshThakur/woocommerce-mcp-server" target="_blank" rel="noopener">Source on GitHub</a>
+  </footer>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const log = $("#log");
+const input = $("#input");
+const sendBtn = $("#send");
+const counter = $("#counter");
+
+let sessionId = null;
+let busy = false;
+let config = { readOnly: true, maxMessageChars: 500 };
+
+const TOOL_LABELS = {
+  get_products: "Searched products",
+  get_orders: "Checked orders",
+  get_order_details: "Opened order details",
+  get_store_stats: "Pulled store stats",
+  get_customers: "Looked up customers",
+  update_order_status: "Updated an order",
+};
+
+const SUGGESTIONS_READ = [
+  "Which products do we have in the Shirts category?",
+  "How are sales this month?",
+  "Who is my best customer?",
+  "Show orders that are still processing",
+];
+const SUGGESTIONS_WRITE = ["Mark order 94 as completed"];
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+// Escape first, then allow only **bold**. Nothing from the model or the store is ever inserted as raw HTML.
+function fmt(text) {
+  return esc(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+function scrollDown() { log.scrollTop = log.scrollHeight; }
+
+function el(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+
+function argsText(args) {
+  if (!args || typeof args !== "object") return "";
+  return Object.entries(args).map(([k, v]) => `${k}: ${v}`).join(", ");
+}
+
+function renderWelcome() {
+  log.innerHTML = "";
+  const w = el("div", "welcome");
+  w.appendChild(el("h2", "", "Ask your store anything"));
+  w.appendChild(el("p", "", "Ask in plain English. The assistant looks up real data from the store, and shows which tools it used."));
+  const wrap = el("div", "suggestions");
+  const list = config.readOnly ? SUGGESTIONS_READ : SUGGESTIONS_READ.concat(SUGGESTIONS_WRITE);
+  for (const s of list) {
+    const b = el("button");
+    b.type = "button";
+    b.textContent = s;
+    b.addEventListener("click", () => send(s));
+    wrap.appendChild(b);
+  }
+  w.appendChild(wrap);
+  log.appendChild(w);
+}
+
+function clearWelcome() {
+  const w = log.querySelector(".welcome");
+  if (w) w.remove();
+}
+
+function addUser(text) {
+  const m = el("div", "msg user");
+  const b = el("div", "bubble");
+  b.textContent = text;
+  m.appendChild(b);
+  log.appendChild(m);
+  scrollDown();
+}
+
+function chipsFor(trace) {
+  if (!trace || !trace.length) return null;
+  const wrap = el("div", "chips");
+  for (const t of trace) {
+    let cls = "chip";
+    let label = TOOL_LABELS[t.tool] || t.tool;
+    if (t.declined) { cls += " muted"; label = "Cancelled: " + label.toLowerCase(); }
+    else if (t.blocked) { cls += " bad"; label = "Blocked: " + label.toLowerCase(); }
+    else if (!t.ok) { cls += " bad"; label += " (failed)"; }
+    const c = el("span", cls);
+    c.title = `${t.tool}(${argsText(t.args)})`;
+    c.appendChild(document.createTextNode(label));
+    const a = argsText(t.args);
+    if (a) { const s = el("span", "args"); s.textContent = a; c.appendChild(s); }
+    wrap.appendChild(c);
+  }
+  return wrap;
+}
+
+function addAssistant(data) {
+  const m = el("div", "msg assistant");
+  const chips = chipsFor(data.trace);
+  if (chips) m.appendChild(chips);
+  if (data.status === "answer") {
+    m.appendChild(el("div", "bubble", fmt(data.text || "")));
+    if (data.usage) {
+      const total = (data.usage.prompt_tokens || 0) + (data.usage.completion_tokens || 0);
+      m.appendChild(el("div", "meta", `${total.toLocaleString()} tokens used in this chat`));
+    }
+  }
+  log.appendChild(m);
+  if (data.status === "approval_required") addApproval(data.pending);
+  scrollDown();
+}
+
+function addError(text) {
+  const m = el("div", "msg assistant error");
+  const b = el("div", "bubble");
+  b.textContent = text;
+  m.appendChild(b);
+  log.appendChild(m);
+  scrollDown();
+}
+
+function addApproval(p) {
+  const m = el("div", "msg assistant");
+  const card = el("div", "approval");
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label", "Approval needed");
+  card.appendChild(el("div", "label", "Approval needed"));
+  const what = el("div", "what");
+  what.textContent = p.summary;
+  card.appendChild(what);
+  card.appendChild(el("div", "note", "The assistant will not change anything until you approve."));
+  const actions = el("div", "actions");
+  const go = el("button", "go"); go.type = "button"; go.textContent = "Approve";
+  const no = el("button"); no.type = "button"; no.textContent = "Cancel";
+  actions.appendChild(go); actions.appendChild(no);
+  card.appendChild(actions);
+  m.appendChild(card);
+  log.appendChild(m);
+
+  const resolve = (yes) => {
+    go.disabled = true; no.disabled = true;
+    actions.replaceWith(el("div", "done", yes ? "Approved. Making the change..." : "Cancelled."));
+    resolveApproval(yes);
+  };
+  go.addEventListener("click", () => resolve(true));
+  no.addEventListener("click", () => resolve(false));
+  go.focus();
+  setBusy(true, true); // keep input locked while an approval is pending
+}
+
+let typingEl = null;
+let slowTimer = null;
+function showTyping() {
+  hideTyping();
+  typingEl = el("div", "typing");
+  typingEl.innerHTML = '<span class="dots"><span></span><span></span><span></span></span><span class="t">Checking the store...</span>';
+  log.appendChild(typingEl);
+  scrollDown();
+  slowTimer = setTimeout(() => {
+    const t = typingEl && typingEl.querySelector(".t");
+    if (t) t.textContent = "Still working. The free demo server may be waking up, this can take up to 30 seconds.";
+  }, 8000);
+}
+function hideTyping() {
+  clearTimeout(slowTimer);
+  if (typingEl) { typingEl.remove(); typingEl = null; }
+}
+
+function setBusy(on, awaitingApproval) {
+  busy = on;
+  sendBtn.disabled = on;
+  input.disabled = on;
+  input.placeholder = awaitingApproval ? "Approve or cancel the change above first..." : "Ask about products, orders, customers or sales...";
+  if (!on) input.focus();
+}
+
+async function api(path, body) {
+  const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let data = {};
+  try { data = await res.json(); } catch { /* non-JSON error page */ }
+  return { ok: res.ok, status: res.status, data };
+}
+
+function handle(r) {
+  const d = r.data || {};
+  if (d.resetSession) sessionId = null;
+  if (!r.ok) {
+    addError(d.error || "Something went wrong. Please try again.");
+    return false;
+  }
+  if (d.sessionId) sessionId = d.sessionId;
+  addAssistant(d);
+  return d.status !== "approval_required";
+}
+
+async function send(text) {
+  text = (text || "").trim();
+  if (!text || busy) return;
+  clearWelcome();
+  addUser(text);
+  input.value = ""; autoGrow(); updateCounter();
+  setBusy(true);
+  showTyping();
+  try {
+    const r = await api("/api/chat", { sessionId, message: text });
+    hideTyping();
+    const finished = handle(r);
+    if (finished) setBusy(false);
+  } catch {
+    hideTyping();
+    addError("Could not reach the server. Check your connection and try again.");
+    setBusy(false);
+  }
+}
+
+async function resolveApproval(yes) {
+  setBusy(true);
+  showTyping();
+  try {
+    const r = await api("/api/approve", { sessionId, approve: yes });
+    hideTyping();
+    const finished = handle(r);
+    if (finished) setBusy(false);
+  } catch {
+    hideTyping();
+    addError("Could not reach the server. Check your connection and try again.");
+    setBusy(false);
+  }
+}
+
+function autoGrow() {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 120) + "px";
+}
+function updateCounter() {
+  const n = input.value.length, max = config.maxMessageChars;
+  counter.textContent = n > max * 0.8 ? `${n} / ${max}` : "";
+  counter.classList.toggle("warn", n >= max);
+}
+
+input.addEventListener("input", () => { autoGrow(); updateCounter(); });
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(input.value); }
+});
+$("#form").addEventListener("submit", (e) => { e.preventDefault(); send(input.value); });
+$("#new-chat").addEventListener("click", () => {
+  sessionId = null;
+  hideTyping();
+  setBusy(false);
+  renderWelcome();
+});
+
+async function init() {
+  try {
+    const r = await fetch("/api/config");
+    if (r.ok) config = Object.assign(config, await r.json());
+  } catch { /* keep defaults */ }
+  input.maxLength = config.maxMessageChars;
+  $("#banner").innerHTML = config.readOnly
+    ? "<strong>Public demo, read-only.</strong> Connected to a sample store. The assistant can look things up but cannot change anything."
+    : "<strong>Write mode.</strong> The assistant asks for your approval before it changes anything in the store.";
+  renderWelcome();
+  input.focus();
+}
+init();
+</script>
+</body>
+</html>

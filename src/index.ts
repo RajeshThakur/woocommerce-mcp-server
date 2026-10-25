@@ -192,13 +192,18 @@ registerTool(
       .string()
       .optional()
       .describe("Return orders after this date (ISO 8601 format, e.g. 2026-01-01T00:00:00)"),
+    customer_id: z
+      .number()
+      .optional()
+      .describe("Only return orders for this customer ID (get it from get_customers)"),
   },
-  async ({ status, per_page, after }) => {
+  async ({ status, per_page, after, customer_id }) => {
     const params: Record<string, string> = {
       per_page: String(per_page),
       status: status || "any",
     };
     if (after) params.after = after;
+    if (customer_id) params.customer = String(customer_id);
 
     const orders = (await wcFetch("orders", params)) as any[];
 
