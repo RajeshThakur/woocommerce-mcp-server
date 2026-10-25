@@ -3,6 +3,15 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 // import fetch from "node-fetch";
 import * as dotenv from "dotenv";
+import * as dns from "node:dns";
+import * as net from "node:net";
+
+// Slow cross-region connections (for example a US host calling a store in Asia) can exceed Node's
+// default 250 ms per-address connect attempt and fail with ETIMEDOUT. Prefer IPv4 and allow 5 s.
+dns.setDefaultResultOrder("ipv4first");
+if (typeof net.setDefaultAutoSelectFamilyAttemptTimeout === "function") {
+  net.setDefaultAutoSelectFamilyAttemptTimeout(5000);
+}
 
 dotenv.config({ quiet: true });
 
