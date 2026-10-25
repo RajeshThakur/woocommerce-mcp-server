@@ -4,7 +4,7 @@ const express = require("express");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { createSession, chat, resolveApproval, MODEL } = require("./agent");
-const { close, isReadOnly } = require("./mcp-client");
+const { close, isReadOnly, listTools, callTool } = require("./mcp-client");
 
 const PORT = process.env.PORT || 3000;
 const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
@@ -183,13 +183,51 @@ app.post("/api/approve", async (req, res) => {
   return withSession(req, res, sessionId, false, (session) => resolveApproval(session, approve));
 });
 
-app.get("/api/config", (_req, res) => {
+app.get("/api/config", async (_req, res) => {
+  let tools = [];
+  try {
+    tools = (await listTools()).map((t) => t.name);
+  } catch (err) {
+    console.error(`[config] could not list tools: ${err.message}`);
+  }
   res.json({
     readOnly: isReadOnly(),
     model: MODEL,
     maxMessageChars: LIMITS.maxMessageChars,
     perDayIp: LIMITS.perDayIp,
+    tools,
   });
+});
+
+// Live store summary for the page header. Cached so page loads never hammer the store.
+const SNAPSHOT_TTL_MS = 60_000;
+const SNAPSHOT_FAIL_TTL_MS = 15_000;
+let snapshot = { at: 0, data: null, failedAt: 0 };
+
+app.get("/api/snapshot", async (_req, res) => {
+  const now = Date.now();
+  if (snapshot.data && now - snapshot.at < SNAPSHOT_TTL_MS) return res.json(snapshot.data);
+  if (!snapshot.data && now - snapshot.failedAt < SNAPSHOT_FAIL_TTL_MS) {
+    return res.status(503).json({ error: "unavailable" });
+  }
+  try {
+    const r = await callTool("get_store_stats", { period: "month" });
+    if (r.isError) throw new Error(r.text);
+    const pick = (label) => {
+      const m = r.text.match(new RegExp(`^${label}:\\s*(.+)$`, "m"));
+      return m ? m[1].trim() : null;
+    };
+    snapshot = {
+      at: now,
+      failedAt: 0,
+      data: { period: "month", sales: pick("Total Sales"), orders: pick("Orders"), items: pick("Items Sold") },
+    };
+    return res.json(snapshot.data);
+  } catch (err) {
+    snapshot.failedAt = now;
+    console.error(`[snapshot] ${err.message}`);
+    return res.status(503).json({ error: "unavailable" });
+  }
 });
 
 app.get("/api/usage", (_req, res) => {
