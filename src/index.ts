@@ -40,6 +40,13 @@ async function wcFetch(
     if (err?.name === "TimeoutError") {
       throw new WooError(0, "The store did not respond within 15 seconds. Check that the site is up and try again.");
     }
+    // Log the real cause (DNS, TLS, connection reset...) to stderr so it shows up in host logs.
+    const cause: any = err?.cause;
+    process.stderr.write(
+      `[wcFetch] network error calling ${url.origin}: ${err?.message || err}` +
+        (cause ? ` | cause: ${cause.code || ""} ${cause.message || cause}` : "") +
+        "\n"
+    );
     throw new WooError(0, `Could not reach the store at ${WC_URL}. Check the URL and your network connection.`);
   }
 
