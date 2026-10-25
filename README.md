@@ -1,5 +1,7 @@
 # WooCommerce MCP Server
 
+**Live demo:** [Store Assistant](https://woocommerce-mcp-server-hli8.onrender.com/) (public, read-only, sample store data). The first load can take up to 30 seconds because it runs on a free host.
+
 An MCP (Model Context Protocol) server that exposes a WooCommerce store to AI agents. An agent can read products, orders, customers and sales stats, and perform one controlled write action (changing an order's status), all through typed tool definitions over stdio.
 
 Built with TypeScript and the official MCP SDK. It runs locally as a child process of any MCP-compatible client such as Claude Desktop.
